@@ -182,7 +182,7 @@ module.exports = {
             mensagem: `Cliente ${id} excluído com sucesso.`,
             dados: null
         });
-
+        
     } catch (error) {
 
         return response.status(500).json({
