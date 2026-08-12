@@ -8,7 +8,8 @@ const OrdensServicoController = require('../controllers/ordensServico');
 const ProblemasController = require('../controllers/problemas');
 const ServicosController = require('../controllers/servicos');
 const PecasController = require('../controllers/pecas');
-
+const PagamentosController = require('../controllers/pagamentos');
+const ExecucoesController = require('../controllers/execucoes');
 const ItensOsController = require('../controllers/itensOs');
 
 ////////////////////////////
@@ -53,5 +54,15 @@ router.get('/itens-os', ItensOsController.listarItensOs);
 router.post('/itens-os', ItensOsController.cadastrarItemOs);
 router.patch('/itens-os/:id', ItensOsController.editarItemOs);
 router.delete('/itens-os/:id', ItensOsController.apagarItemOs);
+
+router.get('/pagamentos', PagamentosController.listarPagamentos);
+router.post('/pagamentos', PagamentosController.cadastrarPagamento);
+router.patch('/pagamentos/:id', PagamentosController.editarPagamento);
+router.delete('/pagamentos/:id', PagamentosController.apagarPagamento);
+
+router.get('/execucoes', ExecucoesController.listarExecucoes);
+router.post('/execucoes', ExecucoesController.cadastrarExecucao);
+router.patch('/execucoes/:id', ExecucoesController.editarExecucao);
+router.delete('/execucoes/:id', ExecucoesController.apagarExecucao);
 
 module.exports = router;
