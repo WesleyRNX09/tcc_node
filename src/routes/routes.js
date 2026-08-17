@@ -11,8 +11,15 @@ const PecasController = require('../controllers/pecas');
 const PagamentosController = require('../controllers/pagamentos');
 const ExecucoesController = require('../controllers/execucoes');
 const ItensOsController = require('../controllers/itensOs');
+const LoginsController = require('../controllers/logins');
+const autenticarToken = require('../middlewares/autenticacao');
+const permitirApenas = require('../middlewares/autorizacao');
 
 ////////////////////////////
+
+router.post('/login',LoginsController.autenticar);
+router.use(autenticarToken);
+router.post( '/logins',permitirApenas('administrador'),LoginsController.cadastrarLogin );
 
 router.get('/clientes', ClientesController.listarClientes);
 router.post('/clientes', ClientesController.cadastrarCliente);
@@ -25,23 +32,23 @@ router.post('/veiculos', VeiculosController.cadastrarVeiculo);
 router.patch('/veiculos/:id', VeiculosController.editarVeiculo);
 router.delete('/veiculos/:id', VeiculosController.apagarVeiculo);
 
-router.get('/funcionarios', FuncionariosController.listarFuncionarios);
-router.post('/funcionarios', FuncionariosController.cadastrarFuncionario);
-router.patch('/funcionarios/:id', FuncionariosController.editarFuncionario);
-router.delete('/funcionarios/:id', FuncionariosController.apagarFuncionario);
+router.get('/funcionarios',permitirApenas('administrador'),FuncionariosController.listarFuncionarios);
+router.post('/funcionarios',permitirApenas('administrador'),FuncionariosController.cadastrarFuncionario);
+router.patch('/funcionarios/:id',permitirApenas('administrador'),FuncionariosController.editarFuncionario);
+router.delete('/funcionarios/:id',permitirApenas('administrador'),FuncionariosController.apagarFuncionario);
 
 // ======================================
 // ORDENS DE SERVIÇO
 // ======================================
 
 // Lista + pesquisa + filtros + paginação
-router.get('/ordens-servico',OrdensServicoController.listarOrdensServico);
+router.get('/ordens-servico',permitirApenas('administrador','funcionario'),OrdensServicoController.listarOrdensServico);
 // Detalhes completos
-router.get('/ordens-servico/:id/detalhes',OrdensServicoController.detalharOrdemServico);
+router.get('/ordens-servico/:id/detalhes', permitirApenas('administrador','funcionario'),OrdensServicoController.detalharOrdemServico);
 // Cadastrar
-router.post('/ordens-servico',OrdensServicoController.cadastrarOrdemServico);
+router.post('/ordens-servico',permitirApenas('administrador','funcionario'),OrdensServicoController.cadastrarOrdemServico);
 // Editar
-router.patch('/ordens-servico/:id',OrdensServicoController.editarOrdemServico);
+router.patch( '/ordens-servico/:id',permitirApenas('administrador','funcionario'),OrdensServicoController.editarOrdemServico);
 // Recalcular valor total
 router.patch('/ordens-servico/:id/recalcular-total', OrdensServicoController.recalcularValorTotal);
 // Excluir
@@ -67,14 +74,18 @@ router.post('/itens-os', ItensOsController.cadastrarItemOs);
 router.patch('/itens-os/:id', ItensOsController.editarItemOs);
 router.delete('/itens-os/:id', ItensOsController.apagarItemOs);
 
-router.get('/pagamentos', PagamentosController.listarPagamentos);
-router.post('/pagamentos', PagamentosController.cadastrarPagamento);
-router.patch('/pagamentos/:id', PagamentosController.editarPagamento);
-router.delete('/pagamentos/:id', PagamentosController.apagarPagamento);
+router.get('/pagamentos',permitirApenas('administrador'),PagamentosController.listarPagamentos);
+router.post('/pagamentos',permitirApenas('administrador'),PagamentosController.cadastrarPagamento);
+router.patch('/pagamentos/:id',permitirApenas('administrador'),PagamentosController.editarPagamento);
+router.delete('/pagamentos/:id',permitirApenas('administrador'),PagamentosController.apagarPagamento);
 
 router.get('/execucoes', ExecucoesController.listarExecucoes);
 router.post('/execucoes', ExecucoesController.cadastrarExecucao);
 router.patch('/execucoes/:id', ExecucoesController.editarExecucao);
 router.delete('/execucoes/:id', ExecucoesController.apagarExecucao);
+
+router.post( '/logins',LoginsController.cadastrarLogin);
+
+
 
 module.exports = router;
