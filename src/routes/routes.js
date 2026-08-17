@@ -30,9 +30,21 @@ router.post('/funcionarios', FuncionariosController.cadastrarFuncionario);
 router.patch('/funcionarios/:id', FuncionariosController.editarFuncionario);
 router.delete('/funcionarios/:id', FuncionariosController.apagarFuncionario);
 
-router.get('/ordens-servico', OrdensServicoController.listarOrdensServico);
-router.post('/ordens-servico', OrdensServicoController.cadastrarOrdemServico);
-router.patch('/ordens-servico/:id', OrdensServicoController.editarOrdemServico);
+// ======================================
+// ORDENS DE SERVIÇO
+// ======================================
+
+// Lista + pesquisa + filtros + paginação
+router.get('/ordens-servico',OrdensServicoController.listarOrdensServico);
+// Detalhes completos
+router.get('/ordens-servico/:id/detalhes',OrdensServicoController.detalharOrdemServico);
+// Cadastrar
+router.post('/ordens-servico',OrdensServicoController.cadastrarOrdemServico);
+// Editar
+router.patch('/ordens-servico/:id',OrdensServicoController.editarOrdemServico);
+// Recalcular valor total
+router.patch('/ordens-servico/:id/recalcular-total', OrdensServicoController.recalcularValorTotal);
+// Excluir
 router.delete('/ordens-servico/:id', OrdensServicoController.apagarOrdemServico);
 
 router.get('/problemas', ProblemasController.listarProblemas);
