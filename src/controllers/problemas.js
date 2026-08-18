@@ -213,6 +213,7 @@ module.exports = {
 
             const { id } = request.params;
 
+
             const {
                 id_os,
                 descricao_prob,
@@ -221,50 +222,350 @@ module.exports = {
                 id_execucao
             } = request.body;
 
+
+            // =====================================================
+            // VALIDAR ID DO PROBLEMA
+            // =====================================================
+
+            if (!idValido(id)) {
+
+                return response.status(400).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'ID do problema inválido.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // BUSCAR PROBLEMA ATUAL
+            // =====================================================
+
+            const sqlProblema = `
+                SELECT
+                    id_problema,
+                    id_os,
+                    descricao_prob,
+                    prioridade,
+                    status,
+                    id_execucao
+
+                FROM problema
+
+                WHERE id_problema = ?;
+            `;
+
+
+            const [problemas] =
+                await db.query(
+                    sqlProblema,
+                    [id]
+                );
+
+
+            if (problemas.length === 0) {
+
+                return response.status(404).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        `Problema ${id} não encontrado.`,
+
+                    dados: null
+
+                });
+
+            }
+
+
+            const problemaAtual =
+                problemas[0];
+
+
+            // =====================================================
+            // MONTAR NOVOS VALORES
+            // =====================================================
+
+            const novoIdOs =
+                id_os !== undefined
+                    ? id_os
+                    : problemaAtual.id_os;
+
+
+            const novaDescricao =
+                descricao_prob !== undefined
+                    ? descricao_prob
+                    : problemaAtual.descricao_prob;
+
+
+            const novaPrioridade =
+                prioridade !== undefined
+                    ? prioridade
+                    : problemaAtual.prioridade;
+
+
+            const novoStatus =
+                status !== undefined
+                    ? status
+                    : problemaAtual.status;
+
+
+            const novoIdExecucao =
+                id_execucao !== undefined
+                    ? id_execucao
+                    : problemaAtual.id_execucao;
+
+
+            // =====================================================
+            // VALIDAR OS
+            // =====================================================
+
+            if (!idValido(novoIdOs)) {
+
+                return response.status(400).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'ID da ordem de serviço inválido.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            const sqlOrdem = `
+                SELECT id_os
+                FROM ordem_servico
+                WHERE id_os = ?;
+            `;
+
+
+            const [ordens] =
+                await db.query(
+                    sqlOrdem,
+                    [novoIdOs]
+                );
+
+
+            if (ordens.length === 0) {
+
+                return response.status(404).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'Ordem de serviço não encontrada.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // VALIDAR DESCRIÇÃO
+            // =====================================================
+
+            if (
+                typeof novaDescricao !== 'string' ||
+                !novaDescricao.trim()
+            ) {
+
+                return response.status(400).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'Descrição do problema é obrigatória.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // VALIDAR PRIORIDADE
+            // =====================================================
+
+            if (
+                typeof novaPrioridade !== 'string' ||
+                !PRIORIDADES_PERMITIDAS.includes(
+                    novaPrioridade.trim()
+                )
+            ) {
+
+                return response.status(400).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        `Prioridade inválida. Permitidas: ${PRIORIDADES_PERMITIDAS.join(', ')}.`,
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // VALIDAR STATUS
+            // =====================================================
+
+            if (
+                typeof novoStatus !== 'string' ||
+                !STATUS_PROBLEMA_PERMITIDOS.includes(
+                    novoStatus.trim()
+                )
+            ) {
+
+                return response.status(400).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        `Status inválido. Permitidos: ${STATUS_PROBLEMA_PERMITIDOS.join(', ')}.`,
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // VALIDAR EXECUÇÃO
+            // =====================================================
+
+            if (
+                novoIdExecucao !== null &&
+                novoIdExecucao !== ''
+            ) {
+
+                if (!idValido(novoIdExecucao)) {
+
+                    return response.status(400).json({
+
+                        sucesso: false,
+
+                        mensagem:
+                            'ID da execução inválido.',
+
+                        dados: null
+
+                    });
+
+                }
+
+
+                const sqlExecucao = `
+                    SELECT id_execucao
+                    FROM execucao
+                    WHERE id_execucao = ?;
+                `;
+
+
+                const [execucoes] =
+                    await db.query(
+                        sqlExecucao,
+                        [novoIdExecucao]
+                    );
+
+
+                if (execucoes.length === 0) {
+
+                    return response.status(404).json({
+
+                        sucesso: false,
+
+                        mensagem:
+                            'Execução não encontrada.',
+
+                        dados: null
+
+                    });
+
+                }
+
+            }
+
+
+            // =====================================================
+            // ATUALIZAR
+            // =====================================================
+
             const sql = `
                 UPDATE problema
+
                 SET
                     id_os = ?,
                     descricao_prob = ?,
                     prioridade = ?,
                     status = ?,
                     id_execucao = ?
+
                 WHERE id_problema = ?;
             `;
 
+
             const valores = [
-                id_os,
-                descricao_prob,
-                prioridade,
-                status,
-                id_execucao || null,
+
+                novoIdOs,
+                novaDescricao.trim(),
+                novaPrioridade.trim(),
+                novoStatus.trim(),
+                novoIdExecucao || null,
                 id
+
             ];
 
-            const [resultado] = await db.query(sql, valores);
 
-            if (resultado.affectedRows === 0) {
+            await db.query(
+                sql,
+                valores
+            );
 
-                return response.status(404).json({
-                    sucesso: false,
-                    mensagem: `Problema ${id} não encontrado.`,
-                    dados: null
-                });
-
-            }
 
             return response.status(200).json({
+
                 sucesso: true,
-                mensagem: `Problema ${id} atualizado com sucesso.`,
-                dados: null
+
+                mensagem:
+                    `Problema ${id} atualizado com sucesso.`,
+
+                dados: {
+                    id_problema:
+                        Number(id)
+                }
+
             });
+
 
         } catch (error) {
 
             return response.status(500).json({
+
                 sucesso: false,
-                mensagem: 'Erro ao atualizar problema.',
-                dados: error.message
+
+                mensagem:
+                    'Erro ao atualizar problema.',
+
+                dados:
+                    error.message
+
             });
 
         }
