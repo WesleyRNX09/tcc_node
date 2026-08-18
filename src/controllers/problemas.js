@@ -1,5 +1,33 @@
 const db = require('../dataBase/connection');
 
+// =========================================================
+// VALIDAÇÕES DE PROBLEMA
+// =========================================================
+
+const PRIORIDADES_PERMITIDAS = [
+    'Baixa',
+    'Média',
+    'Alta'
+];
+
+const STATUS_PROBLEMA_PERMITIDOS = [
+    'Aberto',
+    'Em análise',
+    'Resolvido'
+];
+
+
+function idValido(valor) {
+
+    const numero = Number(valor);
+
+    return (
+        Number.isInteger(numero) &&
+        numero > 0
+    );
+
+}
+
 module.exports = {
 
     async listarProblemas(request, response) {
@@ -49,6 +77,94 @@ module.exports = {
                 id_execucao
             } = request.body;
 
+            const sqlOrdem = `
+                SELECT id_os
+                FROM ordem_servico
+                WHERE id_os = ?;
+            `;
+
+            const [ordens] = await db.query(
+                sqlOrdem,
+                [id_os]
+            );
+
+            if (ordens.length === 0) {
+
+                return response.status(404).json({
+                    sucesso: false,
+                    mensagem: 'Ordem de serviço não encontrada.',
+                    dados: null
+                });
+
+            }
+
+            // Campos obrigatórios
+            if (
+                !id_os ||
+                !prioridade ||
+                !status
+            ) {
+
+                return response.status(400).json({
+                    sucesso: false,
+                    mensagem: 'OS, prioridade e status são obrigatórios.',
+                    dados: null
+                });
+
+            }
+
+            console.log(
+                'TESTE DESCRICAO:',
+                JSON.stringify(descricao_prob),
+                'TAMANHO:',
+                descricao_prob?.length,
+                'APOS TRIM:',
+                JSON.stringify(descricao_prob?.trim())
+            );
+
+
+            // Validar descrição
+            if (
+                typeof descricao_prob !== 'string' ||
+                !descricao_prob.trim()
+            ) {
+
+                return response.status(400).json({
+                    sucesso: false,
+                    mensagem: 'Descrição do problema é obrigatória.',
+                    dados: null
+                });
+
+            }
+
+            // Validar prioridade
+            if (
+                typeof prioridade !== 'string' ||
+                !PRIORIDADES_PERMITIDAS.includes(prioridade.trim())
+            ) {
+
+                return response.status(400).json({
+                    sucesso: false,
+                    mensagem: `Prioridade inválida. Permitidas: ${PRIORIDADES_PERMITIDAS.join(', ')}.`,
+                    dados: null
+                });
+
+            }
+
+            // Validar status
+            if (
+                typeof status !== 'string' ||
+                !STATUS_PROBLEMA_PERMITIDOS.includes(status.trim())
+            ) {
+
+                return response.status(400).json({
+                    sucesso: false,
+                    mensagem: `Status inválido. Permitidos: ${STATUS_PROBLEMA_PERMITIDOS.join(', ')}.`,
+                    dados: null
+                });
+
+            }
+
             const sql = `
                 INSERT INTO problema
                 (
@@ -63,9 +179,9 @@ module.exports = {
 
             const valores = [
                 id_os,
-                descricao_prob,
-                prioridade,
-                status,
+                descricao_prob.trim(),
+                prioridade.trim(),
+                status.trim(),
                 id_execucao || null
             ];
 

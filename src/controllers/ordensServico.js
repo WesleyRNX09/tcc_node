@@ -1,5 +1,55 @@
 const db = require('../dataBase/connection');
 
+// =========================================================
+// VALIDAÇÕES DA ORDEM DE SERVIÇO
+// =========================================================
+
+// Ajuste esta lista caso os nomes dos status
+// no seu banco sejam diferentes.
+const STATUS_OS_PERMITIDOS = [
+    'Aberta',
+    'Em andamento',
+    'Finalizada',
+    'Cancelada'
+];
+
+
+function idValido(valor) {
+
+    const numero = Number(valor);
+
+    return (
+        Number.isInteger(numero) &&
+        numero > 0
+    );
+
+}
+
+
+function dataValida(valor) {
+
+    if (!valor) {
+        return false;
+    }
+
+    const data = new Date(valor);
+
+    return !Number.isNaN(
+        data.getTime()
+    );
+
+}
+
+
+function dataAnterior(data1, data2) {
+
+    return (
+        new Date(data1).getTime() <
+        new Date(data2).getTime()
+    );
+
+}
+
 module.exports = {
 
     // =========================================================
@@ -728,6 +778,344 @@ module.exports = {
             } = request.body;
 
 
+            // =====================================================
+            // CAMPOS OBRIGATÓRIOS
+            // =====================================================
+
+            if (
+                !id_cliente ||
+                !id_veiculo ||
+                !data_entrada ||
+                !status
+            ) {
+
+                return response.status(400).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'Cliente, veículo, data de entrada e status são obrigatórios.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // VALIDAR ID DO CLIENTE
+            // =====================================================
+
+            if (!idValido(id_cliente)) {
+
+                return response.status(400).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'ID do cliente inválido.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // VALIDAR ID DO VEÍCULO
+            // =====================================================
+
+            if (!idValido(id_veiculo)) {
+
+                return response.status(400).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'ID do veículo inválido.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // VERIFICAR SE CLIENTE EXISTE
+            // =====================================================
+
+            const sqlCliente = `
+                SELECT id_cliente
+                FROM cliente
+                WHERE id_cliente = ?;
+            `;
+
+
+            const [clientes] =
+                await db.query(
+                    sqlCliente,
+                    [id_cliente]
+                );
+
+
+            if (clientes.length === 0) {
+
+                return response.status(404).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'Cliente não encontrado.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // VERIFICAR SE VEÍCULO EXISTE
+            // =====================================================
+
+            const sqlVeiculo = `
+                SELECT
+                    id_veiculo,
+                    id_cliente
+
+                FROM veiculo
+
+                WHERE id_veiculo = ?;
+            `;
+
+
+            const [veiculos] =
+                await db.query(
+                    sqlVeiculo,
+                    [id_veiculo]
+                );
+
+
+            if (veiculos.length === 0) {
+
+                return response.status(404).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'Veículo não encontrado.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // VERIFICAR SE VEÍCULO PERTENCE AO CLIENTE
+            // =====================================================
+
+            const veiculo = veiculos[0];
+
+
+            if (
+                Number(veiculo.id_cliente) !==
+                Number(id_cliente)
+            ) {
+
+                return response.status(400).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'O veículo informado não pertence ao cliente informado.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // VALIDAR DATA DE ENTRADA
+            // =====================================================
+
+            if (!dataValida(data_entrada)) {
+
+                return response.status(400).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'Data de entrada inválida.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // VALIDAR DATA DE PREVISÃO
+            // =====================================================
+
+            if (data_previsao) {
+
+                if (!dataValida(data_previsao)) {
+
+                    return response.status(400).json({
+
+                        sucesso: false,
+
+                        mensagem:
+                            'Data de previsão inválida.',
+
+                        dados: null
+
+                    });
+
+                }
+
+
+                if (
+                    dataAnterior(
+                        data_previsao,
+                        data_entrada
+                    )
+                ) {
+
+                    return response.status(400).json({
+
+                        sucesso: false,
+
+                        mensagem:
+                            'A data de previsão não pode ser anterior à data de entrada.',
+
+                        dados: null
+
+                    });
+
+                }
+
+            }
+
+
+            // =====================================================
+            // VALIDAR DATA DE ENTREGA
+            // =====================================================
+
+            if (data_entrega) {
+
+                if (!dataValida(data_entrega)) {
+
+                    return response.status(400).json({
+
+                        sucesso: false,
+
+                        mensagem:
+                            'Data de entrega inválida.',
+
+                        dados: null
+
+                    });
+
+                }
+
+
+                if (
+                    dataAnterior(
+                        data_entrega,
+                        data_entrada
+                    )
+                ) {
+
+                    return response.status(400).json({
+
+                        sucesso: false,
+
+                        mensagem:
+                            'A data de entrega não pode ser anterior à data de entrada.',
+
+                        dados: null
+
+                    });
+
+                }
+
+            }
+
+
+            // =====================================================
+            // VALIDAR STATUS
+            // =====================================================
+
+            if (
+                typeof status !== 'string' ||
+                !STATUS_OS_PERMITIDOS.includes(
+                    status.trim()
+                )
+            ) {
+
+                return response.status(400).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        `Status inválido. Permitidos: ${STATUS_OS_PERMITIDOS.join(', ')}.`,
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // VALIDAR VALOR TOTAL
+            // =====================================================
+
+            let valorTotalFinal = 0;
+
+
+            if (valor_total !== undefined) {
+
+                if (
+                    valor_total === null ||
+                    valor_total === '' ||
+                    Number.isNaN(Number(valor_total)) ||
+                    Number(valor_total) < 0
+                ) {
+
+                    return response.status(400).json({
+
+                        sucesso: false,
+
+                        mensagem:
+                            'Valor total deve ser um número maior ou igual a zero.',
+
+                        dados: null
+
+                    });
+
+                }
+
+
+                valorTotalFinal =
+                    Number(valor_total);
+
+            }
+
+
+            // =====================================================
+            // CADASTRAR
+            // =====================================================
+
             const sql = `
                 INSERT INTO ordem_servico
                 (
@@ -752,17 +1140,18 @@ module.exports = {
                 data_entrada,
                 data_previsao || null,
                 data_entrega || null,
-                status,
+                status.trim(),
                 observacoes || null,
-                valor_total || 0
+                valorTotalFinal
 
             ];
 
 
-            const [resultado] = await db.query(
-                sql,
-                valores
-            );
+            const [resultado] =
+                await db.query(
+                    sql,
+                    valores
+                );
 
 
             return response.status(201).json({
@@ -826,6 +1215,430 @@ module.exports = {
             } = request.body;
 
 
+            // =====================================================
+            // VALIDAR ID DA OS
+            // =====================================================
+
+            if (!idValido(id)) {
+
+                return response.status(400).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'ID da ordem de serviço inválido.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // BUSCAR OS ATUAL
+            // =====================================================
+
+            const sqlOrdemAtual = `
+                SELECT
+                    id_os,
+                    id_cliente,
+                    id_veiculo,
+                    data_entrada,
+                    data_previsao,
+                    data_entrega,
+                    status,
+                    observacoes,
+                    valor_total
+
+                FROM ordem_servico
+
+                WHERE id_os = ?;
+            `;
+
+
+            const [ordens] =
+                await db.query(
+                    sqlOrdemAtual,
+                    [id]
+                );
+
+
+            if (ordens.length === 0) {
+
+                return response.status(404).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        `Ordem de serviço ${id} não encontrada.`,
+
+                    dados: null
+
+                });
+
+            }
+
+
+            const ordemAtual =
+                ordens[0];
+
+
+            // =====================================================
+            // MONTAR NOVOS VALORES
+            // =====================================================
+
+            const novoIdCliente =
+                id_cliente !== undefined
+                    ? id_cliente
+                    : ordemAtual.id_cliente;
+
+
+            const novoIdVeiculo =
+                id_veiculo !== undefined
+                    ? id_veiculo
+                    : ordemAtual.id_veiculo;
+
+
+            const novaDataEntrada =
+                data_entrada !== undefined
+                    ? data_entrada
+                    : ordemAtual.data_entrada;
+
+
+            const novaDataPrevisao =
+                data_previsao !== undefined
+                    ? (
+                        data_previsao === ''
+                            ? null
+                            : data_previsao
+                    )
+                    : ordemAtual.data_previsao;
+
+
+            const novaDataEntrega =
+                data_entrega !== undefined
+                    ? (
+                        data_entrega === ''
+                            ? null
+                            : data_entrega
+                    )
+                    : ordemAtual.data_entrega;
+
+
+            const novoStatus =
+                status !== undefined
+                    ? status
+                    : ordemAtual.status;
+
+
+            const novasObservacoes =
+                observacoes !== undefined
+                    ? observacoes
+                    : ordemAtual.observacoes;
+
+
+            const novoValorTotal =
+                valor_total !== undefined
+                    ? valor_total
+                    : ordemAtual.valor_total;
+
+
+            // =====================================================
+            // VALIDAR CLIENTE E VEÍCULO
+            // =====================================================
+
+            if (!idValido(novoIdCliente)) {
+
+                return response.status(400).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'ID do cliente inválido.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            if (!idValido(novoIdVeiculo)) {
+
+                return response.status(400).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'ID do veículo inválido.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // CLIENTE PRECISA EXISTIR
+            // =====================================================
+
+            const sqlCliente = `
+                SELECT id_cliente
+                FROM cliente
+                WHERE id_cliente = ?;
+            `;
+
+
+            const [clientes] =
+                await db.query(
+                    sqlCliente,
+                    [novoIdCliente]
+                );
+
+
+            if (clientes.length === 0) {
+
+                return response.status(404).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'Cliente não encontrado.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // VEÍCULO PRECISA EXISTIR
+            // =====================================================
+
+            const sqlVeiculo = `
+                SELECT
+                    id_veiculo,
+                    id_cliente
+
+                FROM veiculo
+
+                WHERE id_veiculo = ?;
+            `;
+
+
+            const [veiculos] =
+                await db.query(
+                    sqlVeiculo,
+                    [novoIdVeiculo]
+                );
+
+
+            if (veiculos.length === 0) {
+
+                return response.status(404).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'Veículo não encontrado.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // VEÍCULO PRECISA PERTENCER AO CLIENTE
+            // =====================================================
+
+            if (
+                Number(veiculos[0].id_cliente) !==
+                Number(novoIdCliente)
+            ) {
+
+                return response.status(400).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'O veículo informado não pertence ao cliente informado.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // VALIDAR DATA DE ENTRADA
+            // =====================================================
+
+            if (!dataValida(novaDataEntrada)) {
+
+                return response.status(400).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'Data de entrada inválida.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // VALIDAR DATA DE PREVISÃO
+            // =====================================================
+
+            if (novaDataPrevisao) {
+
+                if (!dataValida(novaDataPrevisao)) {
+
+                    return response.status(400).json({
+
+                        sucesso: false,
+
+                        mensagem:
+                            'Data de previsão inválida.',
+
+                        dados: null
+
+                    });
+
+                }
+
+
+                if (
+                    dataAnterior(
+                        novaDataPrevisao,
+                        novaDataEntrada
+                    )
+                ) {
+
+                    return response.status(400).json({
+
+                        sucesso: false,
+
+                        mensagem:
+                            'A data de previsão não pode ser anterior à data de entrada.',
+
+                        dados: null
+
+                    });
+
+                }
+
+            }
+
+
+            // =====================================================
+            // VALIDAR DATA DE ENTREGA
+            // =====================================================
+
+            if (novaDataEntrega) {
+
+                if (!dataValida(novaDataEntrega)) {
+
+                    return response.status(400).json({
+
+                        sucesso: false,
+
+                        mensagem:
+                            'Data de entrega inválida.',
+
+                        dados: null
+
+                    });
+
+                }
+
+
+                if (
+                    dataAnterior(
+                        novaDataEntrega,
+                        novaDataEntrada
+                    )
+                ) {
+
+                    return response.status(400).json({
+
+                        sucesso: false,
+
+                        mensagem:
+                            'A data de entrega não pode ser anterior à data de entrada.',
+
+                        dados: null
+
+                    });
+
+                }
+
+            }
+
+
+            // =====================================================
+            // VALIDAR STATUS
+            // =====================================================
+
+            if (
+                typeof novoStatus !== 'string' ||
+                !STATUS_OS_PERMITIDOS.includes(
+                    novoStatus.trim()
+                )
+            ) {
+
+                return response.status(400).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        `Status inválido. Permitidos: ${STATUS_OS_PERMITIDOS.join(', ')}.`,
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // VALIDAR VALOR TOTAL
+            // =====================================================
+
+            if (
+                novoValorTotal === null ||
+                novoValorTotal === '' ||
+                Number.isNaN(Number(novoValorTotal)) ||
+                Number(novoValorTotal) < 0
+            ) {
+
+                return response.status(400).json({
+
+                    sucesso: false,
+
+                    mensagem:
+                        'Valor total deve ser um número maior ou igual a zero.',
+
+                    dados: null
+
+                });
+
+            }
+
+
+            // =====================================================
+            // ATUALIZAR
+            // =====================================================
+
             const sql = `
                 UPDATE ordem_servico
 
@@ -845,39 +1658,23 @@ module.exports = {
 
             const valores = [
 
-                id_cliente,
-                id_veiculo,
-                data_entrada,
-                data_previsao || null,
-                data_entrega || null,
-                status,
-                observacoes || null,
-                valor_total,
+                novoIdCliente,
+                novoIdVeiculo,
+                novaDataEntrada,
+                novaDataPrevisao,
+                novaDataEntrega,
+                novoStatus.trim(),
+                novasObservacoes,
+                Number(novoValorTotal),
                 id
 
             ];
 
 
-            const [resultado] = await db.query(
+            await db.query(
                 sql,
                 valores
             );
-
-
-            if (resultado.affectedRows === 0) {
-
-                return response.status(404).json({
-
-                    sucesso: false,
-
-                    mensagem:
-                        `Ordem de serviço ${id} não encontrada.`,
-
-                    dados: null
-
-                });
-
-            }
 
 
             return response.status(200).json({
@@ -887,7 +1684,9 @@ module.exports = {
                 mensagem:
                     `Ordem de serviço ${id} atualizada com sucesso.`,
 
-                dados: null
+                dados: {
+                    id_os: Number(id)
+                }
 
             });
 
