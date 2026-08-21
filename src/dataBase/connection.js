@@ -8,7 +8,7 @@ const pool = mysql.createPool({
     password: process.env.BD_SENHA,
     database: process.env.BD_BANCO,
 
-    waitForConnections: true,
+    waitForConnections: true,                  
     connectionLimit: 10,
     queueLimit: 0
 });

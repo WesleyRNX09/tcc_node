@@ -328,55 +328,169 @@ module.exports = {
 
 
             // =====================================================
-            // CADASTRAR
-            // =====================================================
+// CADASTRAR ITEM + ATUALIZAR ESTOQUE
+// =====================================================
 
-            const sql = `
-                INSERT INTO item_os
-                (
-                    id_os,
-                    id_servico,
-                    id_peca,
-                    quantidade,
-                    valor_unitario,
-                    valor_total
-                )
-                VALUES (?, ?, ?, ?, ?, ?);
-            `;
+const conexao = await db.getConnection();
+
+try {
+
+    await conexao.beginTransaction();
 
 
-            const valores = [
-                id_os,
-                possuiServico
-                    ? id_servico
-                    : null,
-                possuiPeca
-                    ? id_peca
-                    : null,
-                quantidadeNumero,
-                valorUnitarioNumero,
-                valorTotal
-            ];
+    // =====================================================
+    // SE FOR PEÇA, VERIFICAR ESTOQUE
+    // =====================================================
+
+    if (possuiPeca) {
+
+        const sqlEstoque = `
+            SELECT
+                id_peca,
+                estoque
+            FROM peca
+            WHERE id_peca = ?
+            FOR UPDATE;
+        `;
+
+        const [pecasEstoque] =
+            await conexao.query(
+                sqlEstoque,
+                [id_peca]
+            );
 
 
-            const [resultado] =
-                await db.query(
-                    sql,
-                    valores
-                );
+        if (pecasEstoque.length === 0) {
 
+            await conexao.rollback();
 
-            return response.status(201).json({
-                sucesso: true,
-                mensagem:
-                    'Item cadastrado com sucesso.',
-                dados: {
-                    id_item:
-                        resultado.insertId,
-                    valor_total:
-                        valorTotal
-                }
+            return response.status(404).json({
+                sucesso: false,
+                mensagem: 'Peça não encontrada.',
+                dados: null
             });
+
+        }
+
+
+        const estoqueAtual =
+            Number(
+                pecasEstoque[0].estoque
+            );
+
+
+        if (
+            quantidadeNumero >
+            estoqueAtual
+        ) {
+
+            await conexao.rollback();
+
+            return response.status(400).json({
+                sucesso: false,
+                mensagem:
+                    `Estoque insuficiente. Disponível: ${estoqueAtual}.`,
+                dados: null
+            });
+
+        }
+
+
+        // =====================================================
+        // DIMINUIR ESTOQUE
+        // =====================================================
+
+        const sqlBaixarEstoque = `
+            UPDATE peca
+            SET estoque = estoque - ?
+            WHERE id_peca = ?;
+        `;
+
+        await conexao.query(
+            sqlBaixarEstoque,
+            [
+                quantidadeNumero,
+                id_peca
+            ]
+        );
+
+    }
+
+
+    // =====================================================
+    // CADASTRAR ITEM
+    // =====================================================
+
+        const sql = `
+            INSERT INTO item_os
+            (
+                id_os,
+                id_servico,
+                id_peca,
+                quantidade,
+                valor_unitario,
+                valor_total
+            )
+            VALUES (?, ?, ?, ?, ?, ?);
+        `;
+
+
+        const valores = [
+            id_os,
+
+            possuiServico
+                ? id_servico
+                : null,
+
+            possuiPeca
+                ? id_peca
+                : null,
+
+            quantidadeNumero,
+            valorUnitarioNumero,
+            valorTotal
+        ];
+
+
+        const [resultado] =
+            await conexao.query(
+                sql,
+                valores
+            );
+
+
+        await conexao.commit();
+
+
+        return response.status(201).json({
+            sucesso: true,
+
+            mensagem:
+                possuiPeca
+                    ? 'Peça adicionada à OS e estoque atualizado com sucesso.'
+                    : 'Serviço adicionado à OS com sucesso.',
+
+            dados: {
+                id_item:
+                    resultado.insertId,
+
+                valor_total:
+                    valorTotal
+            }
+        });
+
+
+    } catch (error) {
+
+        await conexao.rollback();
+
+        throw error;
+
+    } finally {
+
+        conexao.release();
+
+    }
 
 
         } catch (error) {
@@ -820,44 +934,160 @@ module.exports = {
 
     },
 
-    async apagarItemOs(request, response) {
+   async apagarItemOs(request, response) {
+
+        const { id } = request.params;
+
+
+        // =====================================================
+        // VALIDAR ID
+        // =====================================================
+
+        if (!idValido(id)) {
+
+            return response.status(400).json({
+                sucesso: false,
+                mensagem: 'ID do item inválido.',
+                dados: null
+            });
+
+        }
+
+
+        let conexao;
+
 
         try {
 
-            const { id } = request.params;
+            conexao =
+                await db.getConnection();
 
-            const sql = `
-                DELETE FROM item_os
-                WHERE id_item = ?;
+
+            await conexao.beginTransaction();
+
+
+            // =====================================================
+            // BUSCAR ITEM
+            // =====================================================
+
+            const sqlItem = `
+                SELECT
+                    id_item,
+                    id_os,
+                    id_peca,
+                    id_servico,
+                    quantidade
+                FROM item_os
+                WHERE id_item = ?
+                FOR UPDATE;
             `;
 
-            const valores = [id];
 
-            const [resultado] = await db.query(sql, valores);
+            const [itens] =
+                await conexao.query(
+                    sqlItem,
+                    [id]
+                );
 
-            if (resultado.affectedRows === 0) {
+
+            if (itens.length === 0) {
+
+                await conexao.rollback();
 
                 return response.status(404).json({
                     sucesso: false,
-                    mensagem: `Item ${id} não encontrado.`,
+                    mensagem:
+                        `Item ${id} não encontrado.`,
                     dados: null
                 });
 
             }
 
+
+            const item =
+                itens[0];
+
+
+            // =====================================================
+            // EXCLUIR ITEM
+            // =====================================================
+
+            const sqlExcluir = `
+                DELETE FROM item_os
+                WHERE id_item = ?;
+            `;
+
+
+            await conexao.query(
+                sqlExcluir,
+                [id]
+            );
+
+
+            // =====================================================
+            // SE FOR PEÇA, DEVOLVER AO ESTOQUE
+            // =====================================================
+
+            if (item.id_peca) {
+
+                const sqlDevolverEstoque = `
+                    UPDATE peca
+                    SET estoque = estoque + ?
+                    WHERE id_peca = ?;
+                `;
+
+
+                await conexao.query(
+                    sqlDevolverEstoque,
+                    [
+                        item.quantidade,
+                        item.id_peca
+                    ]
+                );
+
+            }
+
+
+            await conexao.commit();
+
+
             return response.status(200).json({
                 sucesso: true,
-                mensagem: `Item ${id} excluído com sucesso.`,
+
+                mensagem:
+                    item.id_peca
+                        ? `Item ${id} excluído e peça devolvida ao estoque.`
+                        : `Item ${id} excluído com sucesso.`,
+
                 dados: null
             });
 
+
         } catch (error) {
+
+            if (conexao) {
+
+                await conexao.rollback();
+
+            }
+
 
             return response.status(500).json({
                 sucesso: false,
-                mensagem: 'Erro ao excluir item.',
-                dados: error.message
+                mensagem:
+                    'Erro ao excluir item.',
+                dados:
+                    error.message
             });
+
+
+        } finally {
+
+            if (conexao) {
+
+                conexao.release();
+
+            }
 
         }
 
