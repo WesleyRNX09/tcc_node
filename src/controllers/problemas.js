@@ -574,42 +574,152 @@ module.exports = {
 
     async apagarProblema(request, response) {
 
+        const { id } = request.params;
+
+        let conexao;
+
+
         try {
 
-            const { id } = request.params;
+            conexao = await db.getConnection();
 
-            const sql = `
-                DELETE FROM problema
-                WHERE id_problema = ?;
+            await conexao.beginTransaction();
+
+
+            // =============================================
+            // VERIFICAR PROBLEMA
+            // =============================================
+
+            const sqlProblema = `
+                SELECT
+                    id_problema,
+                    id_os
+                FROM problema
+                WHERE id_problema = ?
+                FOR UPDATE;
             `;
 
-            const valores = [id];
 
-            const [resultado] = await db.query(sql, valores);
+            const [problemas] =
+                await conexao.query(
+                    sqlProblema,
+                    [id]
+                );
 
-            if (resultado.affectedRows === 0) {
+
+            if (problemas.length === 0) {
+
+                await conexao.rollback();
 
                 return response.status(404).json({
                     sucesso: false,
-                    mensagem: `Problema ${id} não encontrado.`,
+                    mensagem:
+                        `Problema ${id} não encontrado.`,
                     dados: null
                 });
 
             }
 
+
+            // =============================================
+            // PEGAR SERVIÇOS DO PROBLEMA
+            // =============================================
+
+            const sqlServicos = `
+                SELECT id_servico
+                FROM servico
+                WHERE id_problema = ?;
+            `;
+
+
+            const [servicos] =
+                await conexao.query(
+                    sqlServicos,
+                    [id]
+                );
+
+
+            // =============================================
+            // EXCLUIR ITENS DA OS QUE USAM ESSES SERVIÇOS
+            // =============================================
+
+            for (const servico of servicos) {
+
+                await conexao.query(
+                    `
+                        DELETE FROM item_os
+                        WHERE id_servico = ?;
+                    `,
+                    [
+                        servico.id_servico
+                    ]
+                );
+
+            }
+
+
+            // =============================================
+            // EXCLUIR SERVIÇOS
+            // =============================================
+
+            await conexao.query(
+                `
+                    DELETE FROM servico
+                    WHERE id_problema = ?;
+                `,
+                [id]
+            );
+
+
+            // =============================================
+            // EXCLUIR PROBLEMA
+            // =============================================
+
+            await conexao.query(
+                `
+                    DELETE FROM problema
+                    WHERE id_problema = ?;
+                `,
+                [id]
+            );
+
+
+            await conexao.commit();
+
+
             return response.status(200).json({
                 sucesso: true,
-                mensagem: `Problema ${id} excluído com sucesso.`,
+                mensagem:
+                    `Problema ${id} e seus serviços foram excluídos com sucesso.`,
                 dados: null
             });
 
+
         } catch (error) {
+
+            if (conexao) {
+
+                await conexao.rollback();
+
+            }
+
 
             return response.status(500).json({
                 sucesso: false,
-                mensagem: 'Erro ao excluir problema.',
-                dados: error.message
+                mensagem:
+                    "Erro ao excluir problema.",
+                dados:
+                    error.message
             });
+
+
+        } finally {
+
+            if (conexao) {
+
+                conexao.release();
+
+            }
 
         }
 
